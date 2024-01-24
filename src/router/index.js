@@ -14,21 +14,21 @@ const AboutView = () => import('@/views/AboutView.vue')
 Vue.use(VueRouter)
 
 const routes = [
-    {
-        path: '/home',
-        name: 'Home',
-        component: HomeView
-    },
-    {
-        path: '/about',
-        name: 'About',
-        component: AboutView
-    }
+  {
+    path: '/home',
+    name: 'Home',
+    component: HomeView
+  },
+  {
+    path: '/about',
+    name: 'About',
+    component: AboutView
+  }
 ]
 
 const router = new VueRouter({
-    mode: 'hash',
-    routes
+  mode: 'hash',
+  routes
 })
 
 export default router
