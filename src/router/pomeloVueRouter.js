@@ -2,7 +2,10 @@ let Vue = null
 
 class HistoryRoute {
   constructor() {
-    // 路由实例中需要存储当前的路径信息，代表当前激活的路由，用一个对象表示，默认是null
+    /**
+     * @type {null}
+     * 我们创建的路由实例中，需要对当前激活的路由进行缓存，缓存的是一个对象，初始化时为null
+     */
     this.current = null
   }
 }
@@ -10,60 +13,86 @@ class HistoryRoute {
 // 使用时需要通过new VueRouter来创建一个路由实例，因此定义一个class
 class VueRouter {
   /**
-   * 在new VueRouter时，我们传入了一个{},这个就是这里的options
-   * options其中包含了mode，默认为hash模式
-   * 另外就是routes路由表对象
    * @param options
+   * VueRouter的构造器
+   * 在构造路由实例时，传入一系列的配置options
+   * options中至少包含使用的路由模式hash，路由表routes
    */
   constructor(options) {
+    // 路由模式默认为hash模式
     this.mode = options.mode || 'hash'
+    // 路由表默认为空[]
     this.routes = options.routes || []
-    // 实际上我们直接处理routes数组比较困难，因此将路由表转换为Map结构
+    // 为了便于处理，将数组形式的使用路由表转换为对象形式
     this.routesMap = this.createMap(this.routes)
-    console.log('改造之后的routes', this.routesMap)
-    //
+    console.log('转换之前的routes', this.routes)
+    console.log('转换之后的routes', this.routesMap)
     this.history = new HistoryRoute()
     //  对路由进行初始化
     this.init()
   }
 
+  /**
+   * 将数组形式的路由转换为对象形式：
+   * 使用reduce方法将routes数组处理成为对象形式
+   */
   createMap(routes) {
-    // 注意reduce的使用
-    /**
-     * 使用reduce方法将routes数组处理成为对象形式
-     * path: component info
-     *
-     */
     return routes.reduce((prev, current) => {
       prev[current.path] = current.component
       return prev
     }, {})
   }
 
-  // 初始化路由
   /**
-   * 初始化路由时，需要判断路由使用的mode是hash还是history
-   *
+   * 初始化路由
    */
   init() {
     if (this.mode === 'hash') {
-      // 如果是hash模式
-      // 判断是否存在hash，初始化的时候是没有hash的，这个时候默认跳转到#/
+      /**
+       * 针对hash模式
+       * 如果url中没有hash，就设置为默认的hash:#/
+       */
       (!location.hash) && (location.hash = '#/');
+      /**
+       * 当第一次进入页面或者手动刷新页面时，监听load事件
+       * load事件触发时，将当前激活的hash进行截取并缓存到当前路由实例的history属性中
+       * 截取的规则是slice(1)，因为createMap函数中的key是/xxx的形式，所以这里hash值的#需要删除，#在hash串的索引中位0，所以是slice(1)
+       */
       window.addEventListener('load', () => {
+        console.log('load事件触发')
         this.history.current = location.hash.slice(1)
       })
+      /**
+       * 当切换hash值去更新其中的组件时，会触发hashchange事件
+       * 此时与上面一样，也要将当前激活的路由缓存到当前路由实例的history属性中
+       */
       window.addEventListener('hashchange', () => {
+        console.log('hash change事件触发')
         this.history.current = location.hash.slice(1)
       })
     } else {
+      /**
+       * 如果不是采用hash模式，则根据window.location.pathname进行操作
+       * 如果没有pathname，就将pathname设置为默认的/
+       * 举例：https://www.example.com/path/to/page?query=123中pathname是/path/to/page
+       */
       (!location.pathname) && (location.pathname = '/');
+      /**
+       * 当第一次进入页面或者手动刷新页面时，监听load事件
+       * load事件触发时，将当前激活的hash进行截取并缓存到当前路由实例的history属性中
+       * 这里并不需要像hash模式中去截取，因为pathname就是/开头，createMap中生成的路由对象的key也是/xxx的形式，二者是一致的
+       */
       window.addEventListener('load', () => {
+        console.log('load事件触发')
         this.history.current = location.pathname
       })
+      /**
+       * 监听popstate事件
+       */
       window.addEventListener('popstate', () => {
+        console.log('popstate事件触发')
+        this.history.current = location.pathname
       })
-      this.history.current = location.pathname
     }
   }
 }
@@ -74,41 +103,45 @@ class VueRouter {
  * 如果是对象，必须要提供一个install方法
  * 如果是函数，那么这个函数就会被作为install方法
  * vue在调用install方法的时候，会将vue作为参数传入，install方法被同一个插件多次调用时，插件也只会被安装一次
- *
  */
 
 /**
  * $route与$router的区别？
  * $route是当前的路由对象
  * $router是VueRouter的实例对象
- * 在项目中
  */
 
-// 使用时通过vue.use()，所以需要有一个install方法
-VueRouter
-    .install = function (v) {
-  // 将传入的Vue保存给提前定义的变量Vue
+/**
+ * @param v
+ * @returns {VNode|any|null|parser.Selector}
+ * 在使用vue-router时，是通过Vue.use(router)的方式进行使用，因此需要提供插件形式
+ * 这里提供一个install方法供Vue.use进行调用
+ * Vue.use在调用时，会将Vue传入到这个install中
+ */
+VueRouter.install = function (v) {
   Vue = v
-  console.log(v)
-
-  // 混入到vue的初始参数options中
+  /**
+   * mixin是全局混入，会影响到项目中的每一个组件
+   */
   Vue.mixin({
     beforeCreate() {
-      // 这里使用beforecreate而不是created的原因在于created钩子中$options已经初始化好了
       /**
-       *  在main.js中，router的使用方法是在new Vue的options种传入router，
-       *  但是这个new出来的实例是根组件，因此理论上只有根组件能拿到这个router实例，
-       *  实际上我们需要每个组件内部都存在对同一个router实例的引用，因此需要针对每一个vue组件
-       *  都获取到当前项目的根组件，这样再访问根组件中的router实例即可
-       *  */
+       * 在vue应用初始化时，方式为：
+       * new Vue({
+       *   router,
+       *   render: h => h(App),
+       * }).$mount('#app')
+       * 可以看到options中包含了router对象，这个时候相当于只有根组件才有router对象
+       * 因此如果this.$options.router为true，说明当前的这个组件为根组件
+       */
       if (this.$options?.router) {
-        // 如果是根组件，此时this指向根组件自身，因此用_root属性存储自身的引用，用_router存储这个传入的router实例的引用
+        // 既然此时是根组件，那么这个this自然就指向了根组件，因此采用_root属性进行记录
+        // 同时，用_router属性记录应用中的router实例
         this._root = this
         this._router = this.$options.router
         // 实现history的响应式，借助了vue内部的定义响应式的方法
         Vue.util.defineReactive(this, 'xxx', this._router.history)
       } else {
-        //  如果是子组件，就用_root记录到根组件的引用
         /**
          * 为什么说子组件的父组件中一定会有router对象的引用呢？
          * 有子组件时，钩子函数的执行顺序是：
@@ -123,18 +156,19 @@ VueRouter
          * 因此，当子组件执行beforecreate的时候，父组件的beforecreate已经执行完毕，因此父组件中必然存在_root属性
          * 所以直接取父组件的_root即可
          */
+        // 上面已经处理了根组件的情况，剩下的就是子组件
         this._root = this.$parent?._root
       }
 
-      // 然后将$router属性挂载到当前的组件上
-      // todo:这里为什么要使用这种方式进行挂载，直接this.$router=xxx会有什么问题
-      Object.defineProperty(this, '$router', {
-        get() {
-          return this._root._router
-        }
-      })
+      /**
+       * 将$router,$route挂载到当前的组件实例上
+       */
+      this.$router = this._root._router
 
-      // 实现$route，即当前的路由信息
+      /**
+       * 这里采用这种Object.defineProperty的方式是为了确保$route是一个只读的
+       * 在文档中要求$route是一个只读对象
+       */
       Object.defineProperty(this, '$route', {
         get() {
           return this._root._router.history.current
@@ -155,7 +189,7 @@ VueRouter
         default: () => ''
       }
     },
-    // 稍微深入一下render函数
+
     render(h) {
       const mode = this._self._root._router.mode
       const to = mode === 'hash' ? `#${this.to}` : this.to
@@ -167,14 +201,11 @@ VueRouter
 
   /**
    * 实现router-view
-   * 请注意一点，render函数中的this实际是指向这个这个组件的一个proxy代理对象，而并不是组件本身，这个通过162行的打印代码可以看出来
+   * 请注意一点，render函数中的this实际是指向这个这个组件的一个proxy代理对象，而并不是组件本身
    * 因此我们通过_self属性获取真实的组件的引用
-   *
    */
   Vue.component('router-view', {
     render(h) {
-      console.log(this)
-      console.log(this._self)
       const current = this._self._root._router.history.current
       const routeMap = this._self._root._router.routesMap
       return h(routeMap[current])
@@ -182,5 +213,4 @@ VueRouter
   })
 }
 
-// 最终将类导出
 export default VueRouter

@@ -13,7 +13,6 @@
 export default {
   name: 'App',
   created() {
-    console.log(this)
     console.log(this.$router)
     console.log(this.$route)
   }
